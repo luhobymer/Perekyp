@@ -71,7 +71,9 @@ i18n
     resources,
     lng: 'uk', // Мова за замовчуванням
     fallbackLng: 'uk', // Резервна мова
-    debug: process.env.NODE_ENV === 'development',
+    debug: false, // Вимикаємо debug щоб не засмічувати консоль
+    returnObjects: true, // Дозволяємо повертати об'єкти
+    returnEmptyString: false, // Не повертаємо порожні рядки
     interpolation: {
       escapeValue: false, // Не екрануємо HTML у рядках перекладу
     },
