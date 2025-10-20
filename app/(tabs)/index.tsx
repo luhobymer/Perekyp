@@ -187,7 +187,7 @@ export default function HomeScreen() {
                 >
                   <IconSymbol size={28} name="chart.line.uptrend.xyaxis" color="#388E3C" />
                   <ThemedText style={styles.statValue}>
-                    {stats?.totalProfit ? `${stats.totalProfit} ₴` : '0 ₴'}
+                    {stats?.totalProfit && typeof stats.totalProfit === 'number' ? `${stats.totalProfit} ₴` : '0 ₴'}
                   </ThemedText>
                   <ThemedText style={styles.statLabel}>Прибуток</ThemedText>
                 </TouchableOpacity>
@@ -198,7 +198,7 @@ export default function HomeScreen() {
                 >
                   <IconSymbol size={28} name="creditcard.fill" color="#F57C00" />
                   <ThemedText style={styles.statValue}>
-                    {totalExpenses ? `${totalExpenses} ₴` : '0 ₴'}
+                    {totalExpenses && typeof totalExpenses === 'number' ? `${totalExpenses} ₴` : '0 ₴'}
                   </ThemedText>
                   <ThemedText style={styles.statLabel}>Витрати (місяць)</ThemedText>
                 </TouchableOpacity>
