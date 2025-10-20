@@ -1,0 +1,472 @@
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { 
+  View, 
+  Text, 
+  StyleSheet, 
+  FlatList, 
+  TouchableOpacity, 
+  Alert, 
+  ActivityIndicator 
+} from 'react-native';
+import { useTheme } from '../hooks/useTheme';
+import { useDocuments } from '../hooks/useDocuments';
+import { Document, DocumentType } from '../types/components';
+
+// Визначення типів
+interface DocumentsListProps {
+  carId: string;
+  navigation: {
+    navigate: (screen: string, params?: Record<string, unknown>) => void;
+  };
+}
+
+// Розширений тип документа з усіма можливими полями
+interface DocumentWithLegacyFields extends Omit<Document, 'id' | 'car_id' | 'type' | 'created_at' | 'updated_at' | 'expiry_date'> {
+  id?: string;
+  carId?: string;
+  car_id?: string;
+  document_type?: DocumentType;
+  type?: DocumentType;
+  fileUrl?: string;
+  fileType?: string;
+  fileName?: string;
+  fileSize?: number;
+  createdAt?: string;
+  updatedAt?: string;
+  created_at?: string;
+  updated_at?: string;
+  expiry_date?: Date | string | null;
+  syncStatus?: 'pending' | 'synced' | 'error';
+  [key: string]: unknown;
+}
+
+// Фінальний тип документа з усіма обов'язковими полями
+interface DocumentWithId extends Omit<Document, 'expiry_date'> {
+  id: string;
+  car_id: string;
+  carId: string;
+  type: DocumentType;
+  document_type: DocumentType;
+  expiry_date: Date | null;
+  file_url: string;
+  file_type: string;
+  file_name: string;
+  file_size: number;
+  created_at: string;
+  updated_at: string;
+  syncStatus: 'pending' | 'synced' | 'error';
+  fileUrl: string;
+  fileType: string;
+  fileName: string;
+  fileSize: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+const documentCategories: { value: DocumentType | 'all'; label: string }[] = [
+  { value: 'all', label: 'Всі документи' },
+  { value: 'registration', label: 'Реєстрація' },
+  { value: 'insurance', label: 'Страховка' },
+  { value: 'maintenance', label: 'Техогляд' },
+  { value: 'other_document', label: 'Інші документи' },
+];
+
+// Компонент для відображення списку документів
+export const DocumentsList: React.FC<DocumentsListProps> = ({ carId, navigation }) => {
+  const theme = useTheme();
+  const [selectedType, setSelectedType] = useState<DocumentType | 'all'>('all');
+  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [error, setError] = useState<string | null>(null);
+  const [documents, setDocuments] = useState<DocumentWithId[]>([]);
+  
+  const { getDocuments, deleteDocument } = useDocuments();
+
+  // Функція для конвертації документу з API у DocumentWithId
+  const convertToDocumentWithId = useCallback((doc: DocumentWithLegacyFields): DocumentWithId => {
+    const now = new Date();
+    
+    // Визначаємо тип документа
+    const getDocumentType = (type: unknown): DocumentType => {
+      const validTypes: DocumentType[] = [
+        'registration', 'insurance', 'maintenance', 'inspection', 'passport',
+        'technical_inspection', 'customs_declaration', 'certificate_of_origin',
+        'commercial_invoice', 'bill_of_lading', 'waybill', 'delivery_note',
+        'packing_list', 'weight_note', 'quality_certificate', 'analysis_report',
+        'test_report', 'expert_report', 'act_of_destruction', 'act_of_disposal', 'other_document'
+      ];
+      
+      if (typeof type === 'string' && validTypes.includes(type as DocumentType)) {
+        return type as DocumentType;
+      }
+      return 'other_document';
+    };
+
+    // Обробляємо дату
+    const parseDate = (dateValue: unknown): Date => {
+      if (dateValue instanceof Date) return dateValue;
+      if (typeof dateValue === 'string') {
+        const parsedDate = new Date(dateValue);
+        return isNaN(parsedDate.getTime()) ? now : parsedDate;
+      }
+      return now;
+    };
+
+    // Обробляємо дату закінчення
+    const parseExpiryDate = (dateValue: unknown): Date | null => {
+      if (!dateValue) return null;
+      if (dateValue instanceof Date) return dateValue;
+      if (typeof dateValue === 'string') {
+        const parsedDate = new Date(dateValue);
+        return isNaN(parsedDate.getTime()) ? null : parsedDate;
+      }
+      return null;
+    };
+
+    // Отримуємо значення полів з обробкою значень за замовчуванням
+    const docId = doc.id || `temp-${Date.now()}`;
+    const docCarId = doc.car_id || doc.carId || carId;
+    const docType = getDocumentType(doc.type || doc.document_type);
+    const docTitle = doc.title || 'Без назви';
+    const docDescription = doc.description || '';
+    const docNumber = doc.number || '';
+    const docDate = parseDate(doc.date);
+    const docExpiryDate = parseExpiryDate(doc.expiry_date);
+    const docFileUrl = doc.file_url || doc.fileUrl || '';
+    const docFileType = doc.file_type || doc.fileType || '';
+    const docFileName = doc.file_name || doc.fileName || 'document';
+    const docFileSize = doc.file_size || doc.fileSize || 0;
+    const docCreatedAt = doc.created_at?.toString() || doc.createdAt?.toString() || now.toISOString();
+    const docUpdatedAt = doc.updated_at?.toString() || doc.updatedAt?.toString() || now.toISOString();
+    const docSyncStatus: 'pending' | 'synced' | 'error' = 
+      (doc.syncStatus === 'pending' || doc.syncStatus === 'synced' || doc.syncStatus === 'error')
+        ? doc.syncStatus
+        : 'synced';
+
+    // Створюємо базовий об'єкт з обов'язковими полями
+    const baseDoc: DocumentWithId = {
+      // Обов'язкові поля
+      id: docId,
+      car_id: docCarId,
+      carId: docCarId,
+      
+      // Основні поля документа
+      type: docType,
+      document_type: docType,
+      title: docTitle,
+      description: docDescription,
+      number: docNumber,
+      date: docDate,
+      expiry_date: docExpiryDate,
+      
+      // Поля для файлів
+      file_url: docFileUrl,
+      file_type: docFileType,
+      file_name: docFileName,
+      file_size: docFileSize,
+      
+      // Метадані
+      created_at: docCreatedAt,
+      updated_at: docUpdatedAt,
+      syncStatus: docSyncStatus,
+      
+      // Альтернативні назви полів для зворотної сумісності
+      fileUrl: docFileUrl,
+      fileType: docFileType,
+      fileName: docFileName,
+      fileSize: docFileSize,
+      createdAt: docCreatedAt,
+      updatedAt: docUpdatedAt,
+    };
+
+    // Копіюємо всі інші поля з оригінального документа
+    Object.keys(doc).forEach(key => {
+      if (!(key in baseDoc)) {
+        // @ts-ignore
+        baseDoc[key] = doc[key];
+      }
+    });
+
+    return baseDoc;
+  }, [carId]);
+
+  // Завантаження документів
+  const loadDocuments = useCallback(async () => {
+    if (!carId) return;
+
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      const docs = await getDocuments(carId);
+      const convertedDocs = docs.map(doc => convertToDocumentWithId(doc as DocumentWithLegacyFields));
+      setDocuments(convertedDocs);
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Не вдалося завантажити документи';
+      setError(errorMessage);
+      console.error('Помилка завантаження документів:', err);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [carId, getDocuments, convertToDocumentWithId]);
+
+  // Видалення документа
+  const handleDeleteDocument = useCallback(async (documentId: string) => {
+    if (!documentId) {
+      console.error('Помилка: ID документа не вказано');
+      return;
+    }
+
+    try {
+      // Оновлюємо стан для відображення завантаження
+      setDocuments(prevDocs =>
+        prevDocs.map(doc =>
+          doc.id === documentId ? { ...doc, syncStatus: 'pending' as const } : doc
+        )
+      );
+
+      // Видаляємо документ
+      await deleteDocument(documentId);
+      
+      // Оновлюємо стан після успішного видалення
+      setDocuments(prevDocs => prevDocs.filter(doc => doc.id !== documentId));
+      
+      // Показуємо сповіщення про успішне видалення
+      Alert.alert(
+        'Успіх',
+        'Документ успішно видалено',
+        [{ text: 'OK' }]
+      );
+    } catch (err) {
+      console.error('Помилка при видаленні документа:', err);
+      
+      // Відновлюємо статус документа у разі помилки
+      setDocuments(prevDocs =>
+        prevDocs.map(doc =>
+          doc.id === documentId ? { ...doc, syncStatus: 'error' as const } : doc
+        )
+      );
+      
+      // Показуємо повідомлення про помилку
+      Alert.alert(
+        'Помилка',
+        'Не вдалося видалити документ. Будь ласка, перевірте підключення до мережі та спробуйте ще раз.',
+        [{ text: 'OK' }]
+      );
+    }
+  }, [deleteDocument]);
+
+  // Фільтрація документів за вибраним типом
+  const filteredDocuments = useMemo(() => {
+    if (selectedType === 'all') return documents;
+    return documents.filter(doc => doc.type === selectedType);
+  }, [documents, selectedType]);
+
+  // Завантажуємо документи при зміні carId або функції завантаження
+  useEffect(() => {
+    loadDocuments();
+  }, [loadDocuments]);
+
+  // Рендер елемента списку
+  const renderDocumentItem = useCallback(({ item }: { item: DocumentWithId }) => (
+    <View style={[styles.documentItem, { backgroundColor: theme.colors.card }]}>
+      <View style={styles.documentInfo}>
+        <Text style={[styles.documentTitle, { color: theme.colors.text }]}>
+          {item.title}
+        </Text>
+        {item.description ? (
+          <Text style={[styles.documentDescription, { color: theme.colors.textSecondary }]}>
+            {item.description}
+          </Text>
+        ) : null}
+        {item.number ? (
+          <Text style={[styles.documentMeta, { color: theme.colors.textSecondary }]}>
+            Номер: {item.number}
+          </Text>
+        ) : null}
+        <Text style={[styles.documentMeta, { color: theme.colors.textSecondary }]}>
+          Дата: {new Date(item.date).toLocaleDateString()}
+        </Text>
+        {item.expiry_date && (
+          <Text style={[styles.documentMeta, { color: theme.colors.textSecondary }]}>
+            Дійсний до: {new Date(item.expiry_date).toLocaleDateString()}
+          </Text>
+        )}
+      </View>
+      <View style={styles.documentActions}>
+        <TouchableOpacity
+          onPress={() => navigation.navigate('DocumentDetails', { documentId: item.id })}
+          style={[styles.actionButton, { backgroundColor: theme.colors.primary }]}
+        >
+          <Text style={styles.actionButtonText}>Переглянути</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          onPress={() => handleDeleteDocument(item.id)}
+          style={[styles.actionButton, { backgroundColor: theme.colors.error }]}
+        >
+          <Text style={styles.actionButtonText}>Видалити</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  ), [handleDeleteDocument, navigation, theme]);
+
+  // Рендер списку категорій
+  const renderCategoryItem = useCallback(({ item }: { item: { value: DocumentType | 'all'; label: string } }) => (
+    <TouchableOpacity
+      onPress={() => setSelectedType(item.value)}
+      style={[
+        styles.categoryButton,
+        selectedType === item.value && { backgroundColor: theme.colors.primary },
+      ]}
+    >
+      <Text
+        style={[
+          styles.categoryButtonText,
+          { color: selectedType === item.value ? '#fff' : theme.colors.text },
+        ]}
+      >
+        {item.label}
+      </Text>
+    </TouchableOpacity>
+  ), [selectedType, theme]);
+
+  if (isLoading) {
+    return (
+      <View style={styles.centered}>
+        <ActivityIndicator size="large" color={theme.colors.primary} />
+      </View>
+    );
+  }
+
+  if (error) {
+    return (
+      <View style={styles.centered}>
+        <Text style={[styles.errorText, { color: theme.colors.error }]}>{error}</Text>
+        <TouchableOpacity onPress={loadDocuments} style={styles.retryButton}>
+          <Text style={styles.retryButtonText}>Спробувати ще раз</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
+  return (
+    <View style={styles.container}>
+      {/* Фільтр категорій */}
+      <FlatList
+        horizontal
+        data={documentCategories}
+        renderItem={renderCategoryItem}
+        keyExtractor={item => item.value}
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.categoriesList}
+      />
+
+      {/* Список документів */}
+      {filteredDocuments.length > 0 ? (
+        <FlatList
+          data={filteredDocuments}
+          renderItem={renderDocumentItem}
+          keyExtractor={item => item.id}
+          contentContainerStyle={styles.documentsList}
+        />
+      ) : (
+        <View style={styles.centered}>
+          <Text style={[styles.emptyText, { color: theme.colors.textSecondary }]}>
+            Документів не знайдено
+          </Text>
+        </View>
+      )}
+    </View>
+  );
+};
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    padding: 16,
+  },
+  centered: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  categoriesList: {
+    paddingBottom: 16,
+  },
+  categoryButton: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    marginRight: 8,
+    borderWidth: 1,
+    borderColor: '#ddd',
+  },
+  categoryButtonText: {
+    fontSize: 14,
+  },
+  documentsList: {
+    paddingBottom: 20,
+  },
+  documentItem: {
+    borderRadius: 8,
+    padding: 16,
+    marginBottom: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  documentInfo: {
+    marginBottom: 12,
+  },
+  documentTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    marginBottom: 4,
+  },
+  documentDescription: {
+    fontSize: 14,
+    marginBottom: 4,
+  },
+  documentMeta: {
+    fontSize: 12,
+    marginTop: 2,
+  },
+  documentActions: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    marginTop: 8,
+  },
+  actionButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 4,
+    marginLeft: 8,
+  },
+  actionButtonText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  errorText: {
+    marginBottom: 16,
+    textAlign: 'center',
+  },
+  retryButton: {
+    padding: 12,
+    backgroundColor: '#007AFF',
+    borderRadius: 8,
+  },
+  retryButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  emptyText: {
+    fontSize: 16,
+    textAlign: 'center',
+  },
+});
+
+export default DocumentsList;

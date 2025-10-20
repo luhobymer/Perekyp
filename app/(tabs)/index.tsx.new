@@ -1,0 +1,478 @@
+import React, { useEffect, useState, useCallback } from 'react';
+import { 
+  StyleSheet, 
+  ScrollView, 
+  RefreshControl, 
+  View, 
+  TouchableOpacity, 
+  Modal, 
+  SafeAreaView,
+  StyleProp,
+  ViewStyle,
+  TextStyle
+} from 'react-native';
+import { router } from 'expo-router';
+import { useTranslation } from 'react-i18next';
+
+import { useCars } from '@/src/hooks/useCars';
+import { useAnalytics } from '@/src/hooks/useAnalytics';
+import { useExpenses } from '@/src/hooks/useExpenses';
+import { useAuth } from '@/src/hooks/useAuth';
+import { useNetwork } from '@/src/hooks/useNetwork';
+
+import { ThemedText } from '@/components/ThemedText';
+import { ThemedView } from '@/components/ThemedView';
+import { AdaptiveContainer } from '@/components/AdaptiveContainer';
+import AnimatedScreen from '@/components/AnimatedScreen';
+import { IconSymbol } from '@/components/ui/IconSymbol';
+import OfflineStatus from '@/src/components/OfflineStatus';
+import UniversalFAB from '@/src/components/UniversalFAB';
+import { responsiveContainers, responsiveTypography } from '@/src/styles/responsiveStyles';
+import { SIZES, COLORS } from '@/src/constants/theme';
+import { BusinessUpdate, BusinessStats } from '@/src/types/screens/home/HomeScreen';
+
+interface HomeScreenProps {
+  containerStyle?: StyleProp<ViewStyle>;
+  contentStyle?: StyleProp<ViewStyle>;
+  headerStyle?: StyleProp<ViewStyle>;
+  sectionTitleStyle?: StyleProp<TextStyle>;
+  statsGridStyle?: StyleProp<ViewStyle>;
+  statCardStyle?: StyleProp<ViewStyle>;
+  updatesListStyle?: StyleProp<ViewStyle>;
+  updateItemStyle?: StyleProp<ViewStyle>;
+  renderHeader?: () => React.ReactNode;
+  renderStats?: (stats: BusinessStats | null) => React.ReactNode;
+  renderUpdates?: (updates: BusinessUpdate[]) => React.ReactNode;
+  renderLoading?: () => React.ReactNode;
+  renderError?: (error: Error) => React.ReactNode;
+}
+
+/**
+ * Головний екран додатку з дашбордом
+ */
+const HomeScreen: React.FC<HomeScreenProps> = ({
+  containerStyle,
+  contentStyle,
+  headerStyle,
+  sectionTitleStyle,
+  statsGridStyle,
+  statCardStyle,
+  updatesListStyle,
+  updateItemStyle,
+  renderHeader,
+  renderStats,
+  renderUpdates,
+  renderLoading,
+  renderError,
+}) => {
+  const network = useNetwork();
+  const { user } = useAuth();
+  const { getCars, loading: carsLoading } = useCars();
+  const { getBusinessStats, loading: statsLoading } = useAnalytics();
+  const { getTotalExpenses, loading: expensesLoading } = useExpenses();
+  const { t } = useTranslation();
+  
+  const [stats, setStats] = useState<BusinessStats | null>(null);
+  const [refreshing, setRefreshing] = useState<boolean>(false);
+  const [isMenuOpen, setIsMenuOpen] = useState<boolean>(false);
+  const [cars, setCars] = useState<any[]>([]);
+  const [totalExpenses, setTotalExpenses] = useState<number>(0);
+  const [error, setError] = useState<Error | null>(null);
+
+  const isLoading = carsLoading || statsLoading || refreshing;
+
+  const loadData = useCallback(async () => {
+    try {
+      setError(null);
+      const [carsData, statsData, expensesData] = await Promise.all([
+        getCars(),
+        getBusinessStats(),
+        getTotalExpenses()
+      ]);
+      
+      setCars(carsData || []);
+      setStats(statsData);
+      setTotalExpenses(expensesData || 0);
+    } catch (err) {
+      const error = err instanceof Error ? err : new Error('Помилка завантаження даних');
+      setError(error);
+      console.error('Помилка завантаження даних:', error);
+    }
+  }, [getCars, getBusinessStats, getTotalExpenses]);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
+
+  const onRefresh = useCallback(() => {
+    setRefreshing(true);
+    loadData().finally(() => {
+      setRefreshing(false);
+    });
+  }, [loadData]);
+
+  const activeCars = cars?.filter((car: any) => car.status === 'active').length || 0;
+  
+  // Приклад даних для оновлень
+  const businessUpdates: BusinessUpdate[] = [
+    {
+      id: '1',
+      action: 'Додано',
+      amount: '1',
+      target: 'нових',
+      car: 'автомобіль',
+      performer: 'Адміністратор',
+      date: 'Сьогодні о 14:30',
+      timestamp: Date.now()
+    },
+    {
+      id: '2',
+      action: 'Оновлено',
+      amount: '2',
+      target: 'записів про',
+      car: 'пробіг',
+      performer: 'Менеджер',
+      date: 'Вчора о 10:45',
+      timestamp: Date.now() - 86400000
+    },
+    {
+      id: '3',
+      action: 'Додано',
+      amount: '3',
+      target: 'нових',
+      car: 'відгуків',
+      performer: 'Клієнт',
+      date: '2 дні тому',
+      timestamp: Date.now() - 172800000
+    }
+  ];
+
+  // Дії для FAB
+  const fabActions = [
+    {
+      id: 'add-car',
+      title: t('home.actions.add_car'),
+      icon: 'car',
+      iconBg: '#1976D2',
+      onPress: () => router.push('/cars/add')
+    },
+    {
+      id: 'update-mileage',
+      title: t('home.actions.update_mileage'),
+      icon: 'speedometer',
+      iconBg: '#F57C00',
+      onPress: () => router.push('/cars/mileage')
+    },
+    {
+      id: 'add-expense',
+      title: t('home.actions.add_expense'),
+      icon: 'card',
+      iconBg: '#388E3C',
+      onPress: () => router.push('/expenses/add')
+    },
+    {
+      id: 'add-document',
+      title: t('home.actions.add_document'),
+      icon: 'document',
+      iconBg: '#7B1FA2',
+      onPress: () => router.push('/documents/add')
+    },
+    {
+      id: 'add-buyer',
+      title: t('home.actions.add_buyer'),
+      icon: 'people',
+      iconBg: '#F44336',
+      onPress: () => router.push('/buyers/add')
+    },
+    {
+      id: 'search',
+      title: t('common.search'),
+      icon: 'search',
+      iconBg: '#2196F3',
+      onPress: () => router.push('/search')
+    }
+  ];
+
+  const navigateTo = (path: string) => {
+    router.push(path as any);
+  };
+
+  // Рендер заголовка
+  const renderDefaultHeader = () => (
+    <ThemedView style={[styles.header, headerStyle]}>
+      <View>
+        <ThemedText type="title">
+          {t('home.greeting', { name: user?.user_metadata?.full_name || t('common.user') })}
+        </ThemedText>
+        <ThemedText type="default">{t('home.subtitle')}</ThemedText>
+      </View>
+    </ThemedView>
+  );
+
+  // Рендер статистики
+  const renderDefaultStats = (statsData: BusinessStats | null) => (
+    <View style={[styles.statsGrid, statsGridStyle]}>
+      <TouchableOpacity 
+        style={[styles.statCard, { backgroundColor: '#E3F2FD' }, statCardStyle]} 
+        onPress={() => navigateTo('/(tabs)/explore?tab=cars')}
+      >
+        <IconSymbol size={28} name="car.fill" color="#1976D2" />
+        <ThemedText style={styles.statValue}>{activeCars}</ThemedText>
+        <ThemedText style={styles.statLabel}>{t('home.stats.active_cars')}</ThemedText>
+      </TouchableOpacity>
+      
+      <TouchableOpacity 
+        style={[styles.statCard, { backgroundColor: '#E8F5E9' }, statCardStyle]} 
+        onPress={() => navigateTo('/(tabs)/explore?tab=profits')}
+      >
+        <IconSymbol size={28} name="chart.line.uptrend.xyaxis" color="#388E3C" />
+        <ThemedText style={styles.statValue}>
+          {statsData?.totalProfit ? `${statsData.totalProfit} ₴` : '0 ₴'}
+        </ThemedText>
+        <ThemedText style={styles.statLabel}>{t('home.stats.profit')}</ThemedText>
+      </TouchableOpacity>
+      
+      <TouchableOpacity 
+        style={[styles.statCard, { backgroundColor: '#FFF3E0' }, statCardStyle]} 
+        onPress={() => navigateTo('/(tabs)/explore?tab=expenses')}
+      >
+        <IconSymbol size={28} name="creditcard.fill" color="#F57C00" />
+        <ThemedText style={styles.statValue}>
+          {totalExpenses ? `${totalExpenses} ₴` : '0 ₴'}
+        </ThemedText>
+        <ThemedText style={styles.statLabel}>{t('home.stats.expenses')}</ThemedText>
+      </TouchableOpacity>
+    </View>
+  );
+
+  // Рендер списку оновлень
+  const renderDefaultUpdates = (updates: BusinessUpdate[]) => (
+    <View style={[styles.updatesList, updatesListStyle]}>
+      <ThemedText style={[styles.sectionTitle, sectionTitleStyle]} type="title">
+        {t('home.recent_updates')}
+      </ThemedText>
+      
+      {updates.map((update) => (
+        <TouchableOpacity 
+          key={update.id} 
+          style={[styles.updateItem, updateItemStyle]}
+          onPress={() => {}}
+        >
+          <View style={styles.updateIcon}>
+            <IconSymbol 
+              name={getUpdateIcon(update.action)} 
+              size={20} 
+              color={getUpdateColor(update.action)} 
+            />
+          </View>
+          <View style={styles.updateContent}>
+            <ThemedText style={styles.updateText}>
+              <ThemedText style={styles.updateAction} type="defaultSemiBold">
+                {update.performer} 
+              </ThemedText>
+              {update.action} {update.amount} {update.target} {update.car}
+            </ThemedText>
+            <ThemedText style={styles.updateDate} type="secondary">
+              {update.date}
+            </ThemedText>
+          </View>
+        </TouchableOpacity>
+      ))}
+    </View>
+  );
+
+  // Рендер стану завантаження
+  const renderDefaultLoading = () => (
+    <View style={styles.centered}>
+      <ThemedText>{t('common.loading')}...</ThemedText>
+    </View>
+  );
+
+  // Рендер помилки
+  const renderDefaultError = (error: Error) => (
+    <View style={styles.centered}>
+      <ThemedText type="error">{error.message}</ThemedText>
+      <TouchableOpacity onPress={loadData} style={styles.retryButton}>
+        <ThemedText style={styles.retryButtonText}>{t('common.retry')}</ThemedText>
+      </TouchableOpacity>
+    </View>
+  );
+
+  // Отримання іконки для типу оновлення
+  const getUpdateIcon = (action: string): string => {
+    switch (action.toLowerCase()) {
+      case 'додано':
+        return 'plus.circle.fill';
+      case 'оновлено':
+        return 'pencil.circle.fill';
+      case 'видалено':
+        return 'trash.circle.fill';
+      default:
+        return 'info.circle.fill';
+    }
+  };
+
+  // Отримання кольору для типу оновлення
+  const getUpdateColor = (action: string): string => {
+    switch (action.toLowerCase()) {
+      case 'додано':
+        return '#4CAF50';
+      case 'оновлено':
+        return '#2196F3';
+      case 'видалено':
+        return '#F44336';
+      default:
+        return '#9E9E9E';
+    }
+  };
+
+  return (
+    <AnimatedScreen transition="slideUp" duration={400}>
+      <AdaptiveContainer 
+        style={[styles.container, containerStyle]} 
+        tabletStyle={styles.container} 
+        maxWidth={800}
+      >
+        <SafeAreaView style={{ flex: 1 }}>
+          <ScrollView 
+            style={styles.scrollView}
+            contentContainerStyle={[styles.contentContainer, contentStyle]}
+            refreshControl={
+              <RefreshControl 
+                refreshing={refreshing} 
+                onRefresh={onRefresh} 
+                colors={[COLORS.primary]}
+                tintColor={COLORS.primary}
+              />
+            }
+          >
+            {network.isOffline && <OfflineStatus />}
+            
+            {error && (renderError ? renderError(error) : renderDefaultError(error))}
+            
+            {isLoading && !refreshing && (renderLoading ? renderLoading() : renderDefaultLoading())}
+            
+            {!isLoading && !error && (
+              <>
+                {renderHeader ? renderHeader() : renderDefaultHeader()}
+                
+                <ThemedText style={[styles.sectionTitle, sectionTitleStyle]} type="title">
+                  {t('home.key_metrics')}
+                </ThemedText>
+                
+                {renderStats ? renderStats(stats) : renderDefaultStats(stats)}
+                
+                {renderUpdates 
+                  ? renderUpdates(businessUpdates) 
+                  : renderDefaultUpdates(businessUpdates)
+                }
+              </>
+            )}
+          </ScrollView>
+        </SafeAreaView>
+      </AdaptiveContainer>
+      
+      <UniversalFAB 
+        isOpen={isMenuOpen}
+        onToggleMenu={() => setIsMenuOpen(!isMenuOpen)}
+        actions={fabActions}
+      />
+    </AnimatedScreen>
+  );
+};
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+  },
+  scrollView: {
+    flex: 1,
+  },
+  contentContainer: {
+    padding: 16,
+    paddingBottom: 120, // Додатковий відступ для FAB
+  },
+  header: {
+    marginBottom: 24,
+  },
+  sectionTitle: {
+    marginBottom: 16,
+    marginTop: 8,
+  },
+  statsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    marginBottom: 24,
+  },
+  statCard: {
+    width: '48%',
+    padding: 16,
+    borderRadius: 12,
+    marginBottom: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  statValue: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    marginVertical: 8,
+  },
+  statLabel: {
+    fontSize: 14,
+    textAlign: 'center',
+    opacity: 0.8,
+  },
+  updatesList: {
+    marginBottom: 24,
+  },
+  updateItem: {
+    flexDirection: 'row',
+    padding: 12,
+    borderRadius: 8,
+    backgroundColor: 'rgba(0, 0, 0, 0.02)',
+    marginBottom: 8,
+  },
+  updateIcon: {
+    marginRight: 12,
+    justifyContent: 'center',
+  },
+  updateContent: {
+    flex: 1,
+  },
+  updateText: {
+    fontSize: 14,
+    lineHeight: 20,
+    marginBottom: 4,
+  },
+  updateAction: {
+    color: COLORS.primary,
+  },
+  updateDate: {
+    fontSize: 12,
+  },
+  centered: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    minHeight: 200,
+  },
+  retryButton: {
+    marginTop: 16,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    backgroundColor: COLORS.primary,
+    borderRadius: 8,
+  },
+  retryButtonText: {
+    color: '#FFF',
+    fontWeight: '600',
+  },
+});
+
+export default HomeScreen;
