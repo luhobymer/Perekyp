@@ -38,31 +38,31 @@ export default function TabLayout() {
         <Tabs.Screen
           name="index"
           options={{
-            title: t('home', 'Головна'),
-            headerTitle: t('home', 'Головна'),
+            title: 'Головна',
+            headerTitle: 'Головна',
           }}
         />
         <Tabs.Screen
           name="cars"
           options={{
-            title: t('cars', 'Авто'),
-            headerTitle: t('cars', 'Авто'),
+            title: 'Авто',
+            headerTitle: 'Авто',
             href: '/cars',
           }}
         />
         <Tabs.Screen
           name="expenses"
           options={{
-            title: t('expenses', 'Витрати'),
-            headerTitle: t('expenses', 'Витрати'),
+            title: 'Витрати',
+            headerTitle: 'Витрати',
             href: '/expenses',
           }}
         />
         <Tabs.Screen
           name="explore"
           options={{
-            title: t('analytics', 'Аналітика'),
-            headerTitle: t('analytics', 'Аналітика'),
+            title: 'Аналітика',
+            headerTitle: 'Аналітика',
           }}
         />
         <Tabs.Screen
