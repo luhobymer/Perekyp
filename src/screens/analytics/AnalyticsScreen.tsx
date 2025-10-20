@@ -347,7 +347,7 @@ const AnalyticsScreen: React.FC<AnalyticsScreenProps> = ({ initialTab = 'expense
         <View style={styles.titleContainer}>
           <Ionicons name="analytics-outline" size={24} color={theme.colors.primary} style={{ marginRight: SIZES.small }} />
           <Text style={[styles.title, { color: theme.colors.text }]}>
-            {t('analytics')}
+            {t('analytics.title')}
           </Text>
         </View>
       </View>
