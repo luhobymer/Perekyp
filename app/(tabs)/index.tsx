@@ -6,6 +6,7 @@ import { useAnalytics } from '../../src/hooks/useAnalytics';
 import { useExpenses } from '../../src/hooks/useExpenses';
 import { useAuth } from '../../src/hooks/useAuth';
 import { useNetwork } from '../../src/hooks/useNetwork';
+import { useRecentActivity } from '../../src/hooks/useRecentActivity';
 
 import { ThemedText } from '../../components/ThemedText';
 import { ThemedView } from '../../components/ThemedView';
@@ -36,6 +37,7 @@ export default function HomeScreen() {
   const { getCars, loading: carsLoading } = useCars();
   const { getBusinessStats, loading: statsLoading } = useAnalytics();
   const { getTotalExpenses, loading: expensesLoading } = useExpenses();
+  const { activities: recentActivities, loading: activitiesLoading, refresh: refreshActivities } = useRecentActivity();
   const { t, i18n } = useTranslation();
   
   const [stats, setStats] = useState<any>(null);
@@ -60,49 +62,18 @@ export default function HomeScreen() {
   }, []);
 
   const activeCars = cars?.filter((car: any) => car.status === 'active').length || 0;
-  const businessUpdates = [
-    {
-      id: '1',
-      action: 'Додано',
-      amount: '1',
-      target: 'нових',
-      car: 'автомобіль',
-      performer: 'Адміністратор',
-      date: 'Сьогодні о 14:30',
-      timestamp: Date.now()
-    },
-    {
-      id: '2',
-      action: 'Оновлено',
-      amount: '2',
-      target: 'записів про',
-      car: 'пробіг',
-      performer: 'Менеджер',
-      date: 'Вчора о 10:45',
-      timestamp: Date.now() - 86400000
-    },
-    {
-      id: '3',
-      action: 'Додано',
-      amount: '3',
-      target: 'нових',
-      car: 'відгуків',
-      performer: 'Клієнт',
-      date: '2 дні тому',
-      timestamp: Date.now() - 172800000
-    }
-  ];
 
   const onRefresh = useCallback(() => {
     setRefreshing(true);
     Promise.all([
       getCars().then(data => setCars(data || [])),
       getBusinessStats().then(data => setStats(data)),
-      getTotalExpenses().then(data => setTotalExpenses(data || 0))
+      getTotalExpenses().then(data => setTotalExpenses(data || 0)),
+      refreshActivities()
     ]).finally(() => {
       setRefreshing(false);
     });
-  }, [getCars, getBusinessStats, getTotalExpenses]);
+  }, [getCars, getBusinessStats, getTotalExpenses, refreshActivities]);
 
   const navigateTo = (path: any) => {
     router.push(path);
@@ -215,20 +186,26 @@ export default function HomeScreen() {
                 </TouchableOpacity>
               </View>
               
-              <ThemedText style={styles.sectionTitle} type="title">Останні зміни в додатку</ThemedText>
+              <ThemedText style={styles.sectionTitle} type="title">Остання активність</ThemedText>
               
               <View style={styles.updatesContainer}>
-                {businessUpdates.map((update) => (
-                  <View key={update.id} style={styles.updateItem}>
-                    <Text style={styles.updateTitle}>
-                      {update.action} {update.amount} {update.target} {update.car}
-                    </Text>
-                    <Text style={styles.updatePerformer}>
-                      {update.performer}
-                    </Text>
-                    <Text style={styles.updateDate}>{update.date}</Text>
-                  </View>
-                ))}
+                {activitiesLoading ? (
+                  <Text style={styles.updateTitle}>Завантаження...</Text>
+                ) : recentActivities.length === 0 ? (
+                  <Text style={styles.updateTitle}>Поки немає активності</Text>
+                ) : (
+                  recentActivities.map((activity) => (
+                    <View key={activity.id} style={styles.updateItem}>
+                      <Text style={styles.updateTitle}>
+                        {activity.action}
+                      </Text>
+                      <Text style={styles.updatePerformer}>
+                        {activity.description}
+                      </Text>
+                      <Text style={styles.updateDate}>{activity.date}</Text>
+                    </View>
+                  ))
+                )}
               </View>
             </ScrollView>
           </SafeAreaView>
