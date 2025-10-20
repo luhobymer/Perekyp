@@ -56,7 +56,8 @@ const CarsListScreen: React.FC<CarsListScreenProps> = (props) => {
     renderLoading,
     renderError,
     renderEmpty,
-    renderCarItem: customRenderCarItem,
+    renderCarItem: propsRenderCarItem,
+    customRenderCarItem,
     onCarPress,
     onAddPress,
     onDeleteCar,
@@ -145,13 +146,13 @@ const CarsListScreen: React.FC<CarsListScreenProps> = (props) => {
     }
     
     // Якщо надано рендер через props, використовуємо його
-    if (renderCarItem) {
+    if (propsRenderCarItem) {
       const mockSeparators = {
         highlight: () => {},
         unhighlight: () => {},
         updateProps: () => {}
       };
-      const rendered = renderCarItem({ item, index: 0, separators: mockSeparators } as any);
+      const rendered = propsRenderCarItem({ item, index: 0, separators: mockSeparators } as any);
       return rendered ? <View>{rendered}</View> : <></>;
     }
 
