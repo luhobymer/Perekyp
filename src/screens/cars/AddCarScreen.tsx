@@ -340,7 +340,7 @@ function AddCarScreen({ route }: AddCarScreenProps) {
               {renderSelect(
                 'brand',
                 t('cars.brand'),
-                carBrands.map((brand) => ({ label: brand, value: brand })),
+                Object.keys(carBrands).map((brand) => ({ label: brand, value: brand })),
                 t('cars.selectBrand')
               )}
               {renderSelect(

@@ -12,27 +12,28 @@ console.log('Auth API URL:', `${supabaseUrl}/auth/v1`);
 
 // Перевіряємо середовище виконання
 const isServer = typeof window === 'undefined';
-const isBrowser = typeof window !== 'undefined';
-const isReactNative = typeof navigator !== 'undefined' && navigator.product === 'ReactNative';
+const isWeb = Platform.OS === 'web';
+const isReactNative = Platform.OS !== 'web';
 
-// Визначаємо URL для перенаправлення після автентифікації
-const getRedirectUrl = () => {
-  if (Platform.OS === 'web' && !isServer) {
-    return window.location.origin;
-  } else {
-    // Для мобільних пристроїв використовуємо схему з app.json
-    return 'perekypapp://auth/callback';
-  }
-};
 
 // Створюємо клієнт Supabase з правильними налаштуваннями для поточного середовища
 let supabaseOptions: any = {
   auth: {
     autoRefreshToken: true,
     persistSession: true,
-    detectSessionInUrl: true
+    detectSessionInUrl: isWeb
+  },
+  global: {
+    headers: {
+      'x-client-info': 'perekypapp'
+    }
   }
 };
+
+// Відключаємо realtime для веб-версії через проблеми з websocket
+if (isWeb) {
+  supabaseOptions.realtime = false;
+}
 
 // Конфігуруємо сховище сесій в залежності від середовища
 if (isReactNative) {
