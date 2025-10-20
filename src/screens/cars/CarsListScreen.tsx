@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useState, useEffect } from 'react';
 import { 
   View, 
   StyleSheet, 
@@ -77,6 +77,16 @@ const CarsListScreen: React.FC<CarsListScreenProps> = (props) => {
 
   const [isRefreshing, setIsRefreshing] = useState(false);
   const isLoading = isCarsLoading || isRefreshing;
+
+  // Load cars on mount
+  useEffect(() => {
+    console.log('CarsListScreen: Loading cars...');
+    fetchCars().then(() => {
+      console.log('CarsListScreen: Cars loaded');
+    }).catch(err => {
+      console.error('CarsListScreen: Error loading cars:', err);
+    });
+  }, []);
 
   // Handle refresh action
   const handleRefresh = useCallback(async () => {
